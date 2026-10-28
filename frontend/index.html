@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/network.svg" />
+    <!-- Pinch-zoom stays enabled (accessibility). viewport-fit=cover plus the
+         pt-safe/pb-safe utilities handle the notch and home indicator. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- The docs' canvas colors, one per scheme; services/theme.ts rewrites
+         them when the theme toggle overrides the system. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafbfc" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0e0e18" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="One-button connectivity test for SignalWire WebRTC: signaling, TURN, voice and video." />
+    <!-- The docs' type: Lexend for text, Instrument Sans for display,
+         JetBrains Mono for figures. System fonts fill in offline
+         (see --font-* in globals.css). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Lexend:wght@400;500;600&display=swap"
+    />
+    <title>SignalWire Network Test</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
