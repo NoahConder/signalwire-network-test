@@ -168,8 +168,8 @@ class SignalWireService {
   // open the WebSocket). Resolves with the time from construction to ready$
   // -- the token request included -- and rejects as soon as the token
   // request fails rather than waiting out the step's timeout. skipRegister:
-  // the page only dials out, so the subscriber is never put online, and no
-  // call is reattached across reloads (reconnectAttachedCalls defaults off).
+  // the page only dials out (and a guest token couldn't register anyway), and
+  // no call is reattached across reloads (reconnectAttachedCalls defaults off).
   async connect(fetchToken: TokenFetcher): Promise<{ connectMs: number }> {
     if (this.client) await this.disconnect();
     this.lastDiagnostics = null;

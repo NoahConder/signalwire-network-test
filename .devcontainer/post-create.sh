@@ -18,7 +18,7 @@ if [ ! -f backend/.env ]; then
   echo ""
   echo "WARNING: backend/.env not found. Copy backend/.env.example and fill in at least:"
   echo "  NETWORK_TEST_API_KEY=some-random-value   # required; every /api route fails closed without it"
-  echo "  SPACE_NAME, PROJECT_ID, AUTH_TOKEN, NETWORK_TEST_ECHO_ADDRESS   # or NETWORK_TEST_REGIONS"
+  echo "  SPACE_NAME, PROJECT_ID, AUTH_TOKEN, NETWORK_TEST_ECHO_RESOURCE_ID   # or NETWORK_TEST_REGIONS"
   echo "  NETWORK_TEST_ALLOW_NO_CAPTCHA=true       # local development only"
   echo ""
 fi

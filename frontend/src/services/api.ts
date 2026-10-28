@@ -23,9 +23,9 @@ const api = axios.create({
 // The statuses are the backend's (utils/security.gate and the blueprint):
 // 429 is the per-IP limit on test runs, 403 the captcha, 401/503 mean the key
 // or the backend's configuration is off (the 503 body says which), 500 means
-// the SignalWire REST call failed (details in the backend log, never in the
-// body), and 502/504 or no response at all mean Vite's /api proxy found
-// nothing on :5001.
+// a SignalWire REST call failed, the address listing or the mint (details in
+// the backend log, never in the body), and 502/504 or no response at all mean
+// Vite's /api proxy found nothing on :5001.
 export const describeFetchError = (err: unknown, fallback: string): string => {
   if (axios.isAxiosError(err)) {
     const status = err.response?.status;

@@ -2,7 +2,7 @@
 
 A one-button connectivity test for WebRTC calling on SignalWire. Open the page, press **Start test**, and in under three minutes it reports whether this browser, on this network, can reach SignalWire the way a call would: signaling, TURN relays over UDP, TCP and TLS, a voice call on Opus and on G.711 μ-law (PCMU) with real bitrate, round-trip, jitter and loss figures, and a video room with and without TURN. The result can be downloaded as JSON or copied as plain text for a support ticket.
 
-Everything runs in the browser with the SignalWire Browser SDK (`@signalwire/js` v4). The small Flask backend only mints a short-lived subscriber token for each run.
+Everything runs in the browser with the SignalWire Browser SDK (`@signalwire/js` v4). The small Flask backend only mints a short-lived guest token for each run, which can dial nothing but the echo script and video room you configure.
 
 This project was carved from the [SignalWire Browser SDK v4 All-In-One Example](https://github.com/NoahConder/V4-Browser-SDK-All-In-One-Example), a web dialer, and keeps its SDK wiring, styling and backend gate.
 
@@ -12,7 +12,7 @@ The steps run in order. Each one is time-boxed and ends as **passed**, **warning
 
 | Step | How it works | Passes when |
 |---|---|---|
-| **Signaling** | Mints a five-minute subscriber token through the backend, opens the SDK's WebSocket to SignalWire and authenticates. Reads the ICE servers the platform hands the session. | The client is connected and ready within 15 s. Reports the connect time (token request included) and which TURN transports were advertised. A warning means no TURN servers were advertised. |
+| **Signaling** | Mints a five-minute guest token through the backend, opens the SDK's WebSocket to SignalWire and authenticates. Reads the ICE servers the platform hands the session. | The client is connected and ready within 15 s. Reports the connect time (token request included) and which TURN transports were advertised. A warning means no TURN servers were advertised. |
 | **TURN over UDP** | Builds an ICE server from the session's TURN credentials with only the UDP URL. Two peer connections in the page, both restricted to relay candidates, exchange an offer and answer and open a data channel through the relay. A ping goes through it. | A relay was allocated and the data channel opened and echoed the ping within 12 s. Reports allocation time, channel open time, ping round-trip and the relay protocol. A **warning** means a relay was allocated but data didn't pass between the two peers; a **failure** means no relay candidate at all, usually a firewall blocking that transport. |
 | **TURN over TCP** | The same check with only the `?transport=tcp` URL: the path a call falls back to where UDP is blocked. | As above. |
 | **TURN over TLS** | The same check with a `turns:` URL. | As above. **Skipped** when the platform hands the session no `turns:` URL, which is the normal case today; the row says so. |
@@ -37,7 +37,7 @@ What the numbers mean, and don't:
 
 - Node.js 20.19+ and npm (Vite 8 requires it; the devcontainer provides it)
 - Python 3 (the devcontainer uses 3.12)
-- A SignalWire space, with a Project ID and an API token from its Dashboard (the token needs the **Voice** scope; it only mints subscriber tokens)
+- A SignalWire space, with a Project ID and an API token from its Dashboard (the token needs the **Voice** scope; the backend uses it to look up the addresses of the two resources below and to mint guest tokens)
 - A browser with WebRTC support. The page must be served over HTTPS (or from `localhost`) for microphone and camera access.
 
 ### 1. The echo script
@@ -57,11 +57,11 @@ The voice steps dial a SWML script that answers and echoes the caller's audio ba
 }
 ```
 
-Its Fabric address (shown on the resource, for example `/private/network-test-echo`) is the echo address below. A run's two voice calls last about 12 s each; `timeout` must stay longer than that.
+Copy the resource's **ID** (the UUID shown on its page in the Dashboard): that is the echo resource ID below. The backend looks up the script's Fabric address (for example `/private/network-test-echo`) itself. A run's two voice calls last about 12 s each; `timeout` must stay longer than that.
 
 ### 2. Optional: a video room
 
-For the two video steps, create a video room (Dashboard → Resources → Add → Video Room) and note its address, for example `/public/network-test-room`. Without one those steps are skipped.
+For the two video steps, create a video room (Dashboard → Resources → Add → Video Room) and copy its resource ID the same way. Without one those steps are skipped.
 
 ### 3. Backend
 
@@ -94,21 +94,22 @@ Open http://localhost:5173. `?region=<name>` preselects a region.
 | `TURNSTILE_SITE_KEY` | Cloudflare Turnstile site key. *Bundle*: shows the captcha widget. |
 | `TURNSTILE_SECRET` | Turnstile secret. When set, every token request must carry a valid captcha token (`siteverify`). |
 | `NETWORK_TEST_ALLOW_NO_CAPTCHA` | `true` lets the token endpoint run without a captcha. Local development only: without either this or `TURNSTILE_SECRET` the token endpoint answers 503. |
-| `NETWORK_TEST_REGIONS` | One JSON object keyed by region name, each with `space_name`, `project_id`, `auth_token`, `echo_address` and optionally `video_room_address`. The page offers the keys; `global` is the default. |
-| `SPACE_NAME`, `PROJECT_ID`, `AUTH_TOKEN`, `NETWORK_TEST_ECHO_ADDRESS`, `NETWORK_TEST_VIDEO_ROOM_ADDRESS` | The single-space alternative to `NETWORK_TEST_REGIONS`: they become the `global` region. `SPACE_NAME` is the full hostname (`example.signalwire.com`). Ignored when `NETWORK_TEST_REGIONS` is set. |
-| `NETWORK_TEST_SUBSCRIBER_REFERENCE` | The subscriber every run's token belongs to. SignalWire creates one per reference on the first mint, and subscribers are billed per month; set this to an existing subscriber's email to reuse it. Default `network-test`. |
+| `NETWORK_TEST_REGIONS` | One JSON object keyed by region name, each with `space_name`, `project_id`, `auth_token`, `echo_resource_id` and optionally `video_room_resource_id` (a region needs at least one of the two). The page offers the keys; `global` is the default. |
+| `SPACE_NAME`, `PROJECT_ID`, `AUTH_TOKEN`, `NETWORK_TEST_ECHO_RESOURCE_ID`, `NETWORK_TEST_VIDEO_ROOM_RESOURCE_ID` | The single-space alternative to `NETWORK_TEST_REGIONS`: they become the `global` region. `SPACE_NAME` is the full hostname (`example.signalwire.com`). Ignored when `NETWORK_TEST_REGIONS` is set. |
 | `PORT` | Backend port (default 5001). |
 | `FRONTEND_URL` | The page's origin when it isn't served through the Vite proxy (CORS); its hostname also joins Vite's allowed hosts for tunneled development. |
 | `FLASK_DEBUG` | Leave it off: the Werkzeug debugger allows code execution and the server listens on all interfaces. |
 
 Each region's API token belongs to the project that pays for the test calls. Use a dedicated project with a prepaid balance and an API token scoped to Voice only.
 
+Every run's token is a guest token: outbound-only, limited to the addresses of the two resources, and tied to no subscriber, so nothing is billed monthly for it. Earlier versions minted subscriber tokens, which created a subscriber named `network-test` (or whatever `NETWORK_TEST_SUBSCRIBER_REFERENCE` named); it is no longer used and can be deleted under Resources → Subscribers to stop its monthly fee. The backend caches each resource's addresses for ten minutes per worker, so a changed address reaches new runs after ten minutes or a restart.
+
 ### Backend API
 
 | Route | Purpose |
 |---|---|
 | `GET /api/network-test/config` | The regions, the default and whether a captcha is required. 30 per minute per IP. |
-| `POST /api/network-test/token` | `{"region", "captcha_token"}` → a five-minute subscriber token (for `NETWORK_TEST_SUBSCRIBER_REFERENCE`, default `network-test`), plus the region's echo and room addresses. 5 per 10 minutes per IP. |
+| `POST /api/network-test/token` | `{"region", "captcha_token"}` → a five-minute guest token allowed to dial the region's echo script and video room, plus their addresses. 5 per 10 minutes per IP. |
 | `GET /health` | The configured regions, whether the API key is set and the captcha mode. |
 
 ## Deploying
@@ -158,7 +159,7 @@ backend/
   app.py                     Flask app, /health
   api/network_test.py        /api/network-test/config and /token, the Turnstile check
   utils/security.py          gate(): the API key and the per-IP rate limit
-  utils/signalwire.py        regions from the environment, subscriber token minting
+  utils/signalwire.py        regions from the environment, address lookup, guest token minting
   tests/                     pytest
 frontend/src/
   services/networkTest.ts    the runner and every step
@@ -174,7 +175,7 @@ frontend/e2e/                Playwright specs
 
 ## Security
 
-- The backend holds each region's API token and mints call-capable subscriber tokens. The token endpoint is gated three ways: the API key, a per-IP limit of 5 requests per 10 minutes, and the Turnstile captcha in production. Tokens expire after five minutes and all belong to one subscriber (`network-test` unless `NETWORK_TEST_SUBSCRIBER_REFERENCE` names another), which is never registered for incoming calls.
+- The backend holds each region's API token and mints call-capable guest tokens. The token endpoint is gated three ways: the API key, a per-IP limit of 5 requests per 10 minutes, and the Turnstile captcha in production. Tokens expire after five minutes, are outbound-only, can dial only the configured addresses and create no subscriber.
 - Error responses are generic; details go to the server log only.
 - In development both servers listen on all interfaces (Flask on `0.0.0.0`, Vite with `host: true`). To test from a phone, use an HTTPS tunnel, set `FRONTEND_URL` to it, and close it when you're done.
 

@@ -1,6 +1,7 @@
-"""The network test's backend: a five-minute subscriber token per run, behind
-the API key, a per-IP rate limit and (in production) a Cloudflare Turnstile
-check, plus the page's configuration. Nothing else here talks to SignalWire.
+"""The network test's backend: a five-minute guest token per run, allowed to
+dial only the region's echo script and video room, behind the API key, a
+per-IP rate limit and (in production) a Cloudflare Turnstile check, plus the
+page's configuration. Nothing else here talks to SignalWire.
 """
 import logging
 import os
@@ -9,25 +10,19 @@ import requests
 from flask import Blueprint, jsonify, request
 
 from utils.security import client_ip, gate
-from utils.signalwire import DEFAULT_REGION, load_regions
+from utils.signalwire import DEFAULT_REGION, load_regions, resolve_addresses
 
 logger = logging.getLogger(__name__)
 network_test_bp = Blueprint('network_test', __name__)
 
-# One subscriber for every run, and a token that outlives a run (under three
-# minutes end to end) with little to spare. The SDK would try to refresh at
-# about 80% of the TTL; the page disconnects before that.
-#
-# The reference names the subscriber: SignalWire creates one per reference on
-# the first mint and reuses it after. NETWORK_TEST_SUBSCRIBER_REFERENCE picks
-# an existing subscriber instead (its email), for example in a space where a
-# new subscriber shouldn't be created.
-DEFAULT_TOKEN_REFERENCE = 'network-test'
+# A guest token for every run: outbound-only, allowed to dial only the
+# addresses of the region's echo script and video room (resolved from their
+# resource IDs and cached; see utils.signalwire.resolve_addresses), and naming
+# no subscriber, so nothing is created or billed monthly for it. The token
+# outlives a run (under three minutes end to end) with little to spare: the
+# SDK would try to refresh shortly before it expires; the page disconnects
+# well before that.
 TOKEN_TTL_S = 300
-
-
-def token_reference() -> str:
-    return os.getenv('NETWORK_TEST_SUBSCRIBER_REFERENCE', '').strip() or DEFAULT_TOKEN_REFERENCE
 
 TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
 VERIFY_TIMEOUT_S = 10
@@ -88,11 +83,12 @@ def config():
 
 @network_test_bp.route('/token', methods=['POST'])
 def token():
-    """Mint the run's subscriber token.
+    """Mint the run's guest token.
 
     Body: {"region": "global", "captcha_token": "<Turnstile response>"}. The
-    region picks the credentials (and the echo and room addresses echoed
-    back); the captcha token is required whenever TURNSTILE_SECRET is set.
+    region picks the credentials and the resources whose addresses the token
+    may dial (the echo and room addresses are echoed back for the page); the
+    captcha token is required whenever TURNSTILE_SECRET is set.
     """
     blocked = gate(request, 'network-test', limit=5, window_sec=600)
     if blocked:
@@ -118,19 +114,22 @@ def token():
             return jsonify({"success": False, "error": "Captcha rejected"}), 403
 
     try:
-        token_data = region.client().create_subscriber_token(reference=token_reference(), expires_in=TOKEN_TTL_S)
+        addresses = resolve_addresses(region)
+        token_data = region.client().create_guest_token(
+            allowed_addresses=addresses.allowed_addresses, expires_in=TOKEN_TTL_S)
     except Exception as e:
         # Details stay in the server log; the client gets a generic body.
         logger.error(f"Error minting the network-test token for region {region.name}: {e}")
         return jsonify({"success": False, "error": "Failed to generate token"}), 500
 
-    logger.info(f"Network-test token minted for region {region.name}")
+    logger.info(f"Network-test token minted for region {region.name} "
+                f"({len(addresses.allowed_addresses)} allowed address(es))")
     return jsonify({
         "success": True,
         "data": {
             **token_data,
             "region": region.name,
-            "echo_address": region.echo_address,
-            "video_room_address": region.video_room_address,
+            "echo_address": addresses.echo_address,
+            "video_room_address": addresses.video_room_address,
         },
     })

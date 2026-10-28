@@ -1,10 +1,10 @@
 """Security helpers: API-key gating and a simple per-IP rate limit, shared by
 every /api route.
 
-The token endpoint mints SignalWire subscriber tokens, which can place
-billable calls, so it is never open: the key fails closed, the limit is
-tight, and (in production) a captcha sits in front of it as well (see
-api/network_test.py).
+The token endpoint mints SignalWire guest tokens, which can place billable
+calls to the configured addresses, so it is never open: the key fails closed,
+the limit is tight, and (in production) a captcha sits in front of it as well
+(see api/network_test.py).
 """
 import os
 import time
